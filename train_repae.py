@@ -257,16 +257,18 @@ def main(args):
         transforms.RandomCrop(args.resolution),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        # 建议加上标准化，因为后续 preprocess_imgs_vae 可能会有特定要求
-        # 如果 preprocess_imgs_vae 内部已经做了归一化，请保持一致
+        #标准化
         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)) 
     ])
     
+    # Tiny-ImageNet 结构通常是 root/train/class_id/*.JPEG
+    train_dir = os.path.join(args.data_dir, 'train')
+    if not os.path.exists(train_dir):
+        raise FileNotFoundError(f"未在 {train_dir} 找到数据，请检查 Tiny-ImageNet 路径")
+
     train_dataset = datasets.ImageFolder(
-        root=args.data_dir,
-        train=True,
-        download=True,
-        transform=transforms
+        root=train_dir,
+        transform=transform
     )
     local_batch_size = int(args.batch_size // accelerator.num_processes)
     train_dataloader = DataLoader(
@@ -572,7 +574,7 @@ def parse_args(input_args=None):
     # SiT model params
     parser.add_argument("--model", type=str, default="SiT-XL/2", choices=SiT_models.keys(),
                         help="The model to train.")
-    parser.add_argument("--num-classes", type=int, default=1000)
+    parser.add_argument("--num-classes", type=int, default=200)
     parser.add_argument("--encoder-depth", type=int, default=8)
     parser.add_argument("--qk-norm",  action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--fused-attn", action=argparse.BooleanOptionalAction, default=True)
@@ -582,7 +584,7 @@ def parse_args(input_args=None):
 
     # dataset params
     parser.add_argument("--data-dir", type=str, default="data")
-    parser.add_argument("--resolution", type=int, choices=[256], default=256)
+    parser.add_argument("--resolution", type=int, default=64)
     parser.add_argument("--batch-size", type=int, default=256)
 
     # precision params
