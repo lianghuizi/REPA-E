@@ -209,7 +209,8 @@ def center_crop_arr(image_arr, image_size):
 
 def preprocess_imgs_vae(imgs):
     # imgs: (B, C, H, W) -> (B, C, H, W), [0, 255] uint8 -> [-1, 1] float32
-    return imgs.float() / 127.5 - 1.
+    # return imgs.float() / 127.5 - 1.
+    return imgs
 
 
 def count_trainable_params(m):
