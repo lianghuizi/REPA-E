@@ -12,6 +12,7 @@ from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import torch
+from torchvision import datasets,transforms
 from torch.utils.data import DataLoader
 from torchvision.transforms import Normalize
 from torchvision.utils import make_grid
@@ -19,7 +20,7 @@ from tqdm.auto import tqdm
 from omegaconf import OmegaConf
 import wandb
 
-from dataset import CustomINH5Dataset
+# from dataset import CustomINH5Dataset
 from loss.losses import ReconstructionLoss_Single_Stage
 from models.autoencoder import vae_models
 from models.sit import SiT_models
@@ -246,7 +247,27 @@ def main(args):
     )
 
     # Setup data
-    train_dataset = CustomINH5Dataset(args.data_dir)
+    # Tiny-ImageNet 均值和标准差 (ImageNet 标准值通常也适用)
+    tiny_mean = (0.4802, 0.4481, 0.3975)
+    tiny_std = (0.2302, 0.2265, 0.2262)
+    
+    transform = transforms.Compose([
+        # 考虑到你模型要求分辨率（通常是256），先Resize再Crop
+        transforms.Resize(args.resolution + 32), 
+        transforms.RandomCrop(args.resolution),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        # 建议加上标准化，因为后续 preprocess_imgs_vae 可能会有特定要求
+        # 如果 preprocess_imgs_vae 内部已经做了归一化，请保持一致
+        transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)) 
+    ])
+    
+    train_dataset = datasets.ImageFolder(
+        root=args.data_dir,
+        train=True,
+        download=True,
+        transform=transforms
+    )
     local_batch_size = int(args.batch_size // accelerator.num_processes)
     train_dataloader = DataLoader(
         train_dataset,
