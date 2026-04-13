@@ -48,7 +48,6 @@ def preprocess_raw_image(x, enc_type):
         x = x / 255.
         x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
     elif 'dinov2' in enc_type:
-        x = x / 255.
         x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
         x = torch.nn.functional.interpolate(x, size=target_size, mode='bicubic', align_corners=False)
     elif 'dinov1' in enc_type:
@@ -300,8 +299,6 @@ def main(args):
         transforms.RandomCrop(args.resolution),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        #标准化
-        transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)) 
     ])
     
     # Tiny-ImageNet 结构通常是 root/train/class_id/*.JPEG
@@ -419,11 +416,9 @@ def main(args):
             rae.train()
             model.train()
             with accelerator.accumulate([model, rae, rae_loss_fn]), accelerator.autocast():
-                # 1). Forward pass: VAE
-                processed_image = preprocess_imgs_vae(raw_image)
                 # posterior, z, recon_image = vae(processed_image) 去掉
                 # --- 修改后 (RAE 逻辑) ---
-                z = rae.encode(processed_image)
+                z = rae.encode(raw_image)
                 recon_image = rae.decode(z)
                 
                 # 统一尺寸：把 target 缩放到和 recon 一致
