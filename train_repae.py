@@ -43,7 +43,6 @@ def preprocess_raw_image(x, enc_type):
         x = x / 255.
         x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
     elif 'dinov2' in enc_type:
-        x = x / 255.
         x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
         x = torch.nn.functional.interpolate(x, 224 * (resolution // 256), mode='bicubic')
     elif 'dinov1' in enc_type:
@@ -257,8 +256,6 @@ def main(args):
         transforms.RandomCrop(args.resolution),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        #标准化
-        transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)) 
     ])
     
     # Tiny-ImageNet 结构通常是 root/train/class_id/*.JPEG
