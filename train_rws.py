@@ -509,7 +509,7 @@ def main(args):
                 optimizer_rae.zero_grad(set_to_none=True)
 
                 # discriminator loss and update
-                d_loss, d_loss_dict = rae_loss_fn(processed_image_for_loss, recon_image, extra_dict, global_step, "discriminator")
+                d_loss, d_loss_dict = rae_loss_fn(processed_image_for_loss, recon_image_for_loss, extra_dict, global_step, "discriminator")
                 d_loss = d_loss.mean()
                 accelerator.backward(d_loss)
                 if accelerator.sync_gradients:
