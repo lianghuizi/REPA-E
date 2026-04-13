@@ -418,19 +418,25 @@ def main(args):
             with accelerator.accumulate([model, rae, rae_loss_fn]), accelerator.autocast():
                 # posterior, z, recon_image = vae(processed_image) 去掉
                 # --- 修改后 (RAE 逻辑) ---
-                z = rae.encode(raw_image)
+                processed_image = raw_image
+                z = rae.encode(processed_image)
                 recon_image = rae.decode(z)
+
+                 # 2. 为计算损失准备 [-1.0, 1.0] 的数据版本
+                # 公式: x * 2.0 - 1.0
+                raw_image_for_loss = raw_image * 2.0 - 1.0
+                recon_image_for_loss = recon_image * 2.0 - 1.0
                 
-                # 统一尺寸：把 target 缩放到和 recon 一致
-                if processed_image.shape[-1] != recon_image.shape[-1]:
+                # 3. 统一尺寸：把 target 缩放到和 recon 一致
+                if raw_image_for_loss.shape[-1] != recon_image_for_loss.shape[-1]:
                     processed_image_for_loss = torch.nn.functional.interpolate(
-                        processed_image, 
-                        size=recon_image.shape[-2:],  # 用 recon 的实际尺寸
-                        mode='bilinear', 
-                        align_corners=False
-                    )
+                    raw_image_for_loss, 
+                    size=recon_image_for_loss.shape[-2:],  
+                    mode='bilinear', 
+                    align_corners=False
+                )
                 else:
-                    processed_image_for_loss = processed_image
+                    processed_image_for_loss = raw_image_for_loss
 
                 # 2). Backward pass: VAE, compute the VAE loss, backpropagate, and update the VAE; Then, compute the discriminator loss and update the discriminator
                 #    loss_kwargs used for SiT forward function, create here and can be reused for both VAE and SiT
@@ -492,7 +498,8 @@ def main(args):
                 extra_dict = {
                     "last_layer": last_layer_weight
                 }
-                rae_loss, rae_loss_dict = rae_loss_fn(processed_image_for_loss, recon_image, extra_dict, global_step, "generator")
+
+                rae_loss, rae_loss_dict = rae_loss_fn(processed_image_for_loss, recon_image_for_loss, extra_dict, global_step, "generator")
                 rae_loss = rae_loss.mean()
                 
                 accelerator.backward(rae_loss)
@@ -621,7 +628,7 @@ def main(args):
                     latents_bias = latents_stats['latents_bias'].view(1, in_channels, 1, 1)
                     samples = accelerator.unwrap_model(rae).decode(
                         denormalize_latents(samples, latents_scale, latents_bias))
-                    samples = (samples + 1) / 2.
+                    
                 out_samples = accelerator.gather(samples.to(torch.float32))
                 accelerator.log({"samples": wandb.Image(array2grid(out_samples))})
                 logging.info("Generating EMA samples done.")
