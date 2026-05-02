@@ -381,6 +381,36 @@ class ReconstructionLoss_Single_Stage(ReconstructionLoss_Stage2):
                 d_weight=torch.tensor(d_weight).to(generator_loss.device),
                 gan_loss=generator_loss.detach(),
             )
+        elif self.quantize_mode == "rae":
+            # 1. 提前合并重构损失与感知损失，用于自适应权重的梯度计算
+            recon_total = reconstruction_loss + self.perceptual_weight * perceptual_loss
+
+            # 2. 动态自适应权重计算 (如果你在 train.py 传了 last_layer)
+            if "last_layer" in extra_result_dict and discriminator_factor > 0.0 and self.discriminator_weight > 0.0:
+                last_layer = extra_result_dict["last_layer"]
+                # 调用你写好的自适应权重函数
+                adaptive_d_weight = self.calculate_adaptive_weight(recon_total, generator_loss, last_layer)
+                # 乘上全局的 discriminator_weight 标量
+                d_weight = adaptive_d_weight * self.discriminator_weight
+            else:
+                # Fallback: 如果没有传 last_layer，就用默认的常量权重
+                d_weight *= self.discriminator_weight
+
+            # 3. 计算纯粹的 RAE 总损失 (没有 KL散度，对齐 proj_loss 在 train.py 外部相加)
+            total_loss = (
+                recon_total
+                + d_weight * discriminator_factor * generator_loss
+            )
+
+            loss_dict = dict(
+                total_loss=total_loss.clone().detach(),
+                reconstruction_loss=reconstruction_loss.detach(),
+                perceptual_loss=(self.perceptual_weight * perceptual_loss).detach(),
+                weighted_gan_loss=(d_weight * discriminator_factor * generator_loss).detach(),
+                discriminator_factor=torch.tensor(discriminator_factor).to(generator_loss.device),
+                d_weight=torch.tensor(d_weight).to(generator_loss.device) if isinstance(d_weight, torch.Tensor) else torch.tensor(d_weight).to(generator_loss.device),
+                gan_loss=generator_loss.detach(),
+            )
         else:
             raise NotImplementedError
 
